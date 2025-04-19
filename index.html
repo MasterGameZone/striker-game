@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Striker Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <style>
+        html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; }
+        body { background: #1a1a1a; color: white; font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; }
+        #gameContainer { position: relative; width: 100vw; height: 100vh; background: #2a2a2a; }
+        canvas { display: block; }
+        .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; box-sizing: border-box; }
+        button { padding: 15px 30px; margin: 10px; font-size: 1.2em; background: #4CAF50; border: none; border-radius: 5px; color: white; cursor: pointer; }
+        #score { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 1.5em; }
+    #ad-overlay {
+      height: 290px;
+      width: 300px;
+      position: absolute;
+      background-color: white;
+      margin: auto;
+      display: none;
+      z-index: 99;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+
+      p {
+        color: #000000;
+        font-size: 13px;
+        position: absolute;
+        bottom: -16px;
+        left: 0;
+        padding: 5px;
+      }
+    }
+    #close-start-btn {
+        position: absolute;
+        right: -10px;
+        top: -10px;
+        aspect-ratio: 1/1;
+        height: 25px;
+        color: black;
+        background-color: white;
+        border: 1px solid black;
+        padding: 0;
+        border-radius: 0;
+      }
+    </style>
+  <script type='text/javascript' src='//pl26425085.profitableratecpm.com/a6/ef/99/a6ef998f04228d3f7e099d0379b4c79e.js'></script>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ad-overlay">
+            <button id="close-start-btn" onclick="realRestartGame()">X</button>
+            <p>Visiting this small ad helps us to grow and update. Thanks for your support! 💖</p>
+            <!-- Adsterra Ads Code -->
+            <script type="text/javascript">
+	atOptions = {
+		'key' : 'd1ab09c01ab2e203e3236993dd511f73',
+		'format' : 'iframe',
+		'height' : 250,
+		'width' : 300,
+		'params' : {}
+	};
+</script>
+<script type="text/javascript" src="//www.highperformanceformat.com/d1ab09c01ab2e203e3236993dd511f73/invoke.js"></script>
+          </div>
+
+        <canvas id="gameCanvas"></canvas>
+        <div id="homeScreen" class="screen">
+            <h1>Striker Game</h1>
+            <button onclick="startGame()">🎮 Start Game</button>
+            <button onclick="showHowToPlay()">📖 How to Play</button>
+        </div>
+        <div id="howToScreen" class="screen" style="display: none;">
+            <h2>How to Play</h2>
+            <p>1. Drag the striker in the opposite direction to aim</p>
+            <p>2. Release to shoot</p>
+            <p>3. Overlap 50% of your striker with the target</p>
+            <p>4. Screen scrolls down after each successful hit</p>
+            <button onclick="goHome()">↩️ Back</button>
+        </div>
+        <div id="gameOverScreen" class="screen" style="display: none;">
+            <h2>Game Over!</h2>
+            <p id="finalScore"></p>
+            <button onclick="restartGame()">🎯 Restart</button>
+            <button onclick="goHome()">↩️ Back</button>
+        </div>
+        <div id="score">Score: 0</div>
+    </div>
+<script>
+const adOverlay = document.getElementById('ad-overlay');
+const closeBtn = document.getElementById('close-start-btn');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let gameLoop;
+let gameState = 'home';
+let score = 0;
+let scrollOffset = 0;
+let animationFrame = null;
+
+const striker = {
+    x: 0,
+    y: 0,
+    radius: 20,
+    color: '#ff6b6b',
+    isDragging: false,
+    dragStart: {x: 0, y: 0},
+    hasLaunched: false,
+    startX: 0,
+    startY: 0,
+    targetX: 0,
+    targetY: 0
+};
+
+const target = {
+    x: 0,
+    y: 0,
+    size: 80,
+    shape: 'circle',
+    color: '#4ecdc4'
+};
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    resetStriker();
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+function startGame() {
+    gameState = 'playing';
+    score = 0;
+    scrollOffset = 0;
+    resetStriker();
+    spawnTarget();
+    document.getElementById('homeScreen').style.display = 'none';
+    gameLoop = requestAnimationFrame(update);
+}
+
+function realRestartGame() {
+    gameState = 'playing';
+    score = 0;
+    scrollOffset = 0;
+    resetStriker();
+    spawnTarget();
+    document.getElementById('gameOverScreen').style.display = 'none';
+    gameLoop = requestAnimationFrame(update);
+    adOverlay.style.display = 'none';
+}
+
+function restartGame() {
+    adOverlay.style.display = 'block';
+}
+
+
+function showHowToPlay() {
+    document.getElementById('homeScreen').style.display = 'none';
+    document.getElementById('howToScreen').style.display = 'flex';
+}
+
+function goHome() {
+    gameState = 'home';
+    document.querySelectorAll('.screen').forEach(screen => screen.style.display = 'none');
+    document.getElementById('homeScreen').style.display = 'flex';
+    cancelAnimationFrame(gameLoop);
+    cancelAnimationFrame(animationFrame);
+}
+
+function resetStriker() {
+    striker.x = canvas.width / 2;
+    striker.y = canvas.height / 2;
+    striker.isDragging = false;
+    striker.hasLaunched = false;
+    striker.startX = striker.x;
+    striker.startY = striker.y;
+}
+
+function spawnTarget() {
+    target.shape = ['circle', 'square'][Math.floor(Math.random() * 2)];
+    target.size = Math.random() * 40 + 60;
+    target.color = `hsl(${Math.random() * 360}, 70%, 50%)`;
+    target.x = Math.random() * (canvas.width - target.size) + target.size / 2;
+    target.y = scrollOffset + Math.random() * (canvas.height - target.size) + target.size / 2;
+}
+
+function checkCollision() {
+    const targetRadius = target.size / 2;
+    const strikerRadius = striker.radius;
+    const dx = striker.x - target.x;
+    const dy = striker.y - (target.y - scrollOffset);
+    
+    switch(target.shape) {
+        case 'circle':
+            return Math.hypot(dx, dy) < (targetRadius + strikerRadius / 2);
+        case 'square':
+            return (
+                striker.x > target.x - target.size / 2 + strikerRadius / 2 &&
+                striker.x < target.x + target.size / 2 - strikerRadius / 2 &&
+                striker.y > (target.y - scrollOffset) - target.size / 2 + strikerRadius / 2 &&
+                striker.y < (target.y - scrollOffset) + target.size / 2 - strikerRadius / 2
+            );
+    }
+    return false;
+}
+
+canvas.addEventListener('mousedown', handleStart);
+canvas.addEventListener('touchstart', e => handleStart(e.changedTouches[0]));
+
+function handleStart(e) {
+    if (gameState !== 'playing' || striker.hasLaunched) return;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    if (Math.hypot(mouseX - striker.x, mouseY - striker.y) < striker.radius) {
+        striker.isDragging = true;
+        striker.dragStart.x = mouseX;
+        striker.dragStart.y = mouseY;
+    }
+}
+
+canvas.addEventListener('mousemove', handleMove);
+canvas.addEventListener('touchmove', e => handleMove(e.changedTouches[0]));
+
+function handleMove(e) {
+    if (!striker.isDragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    striker.x = mouseX;
+    striker.y = mouseY;
+}
+
+canvas.addEventListener('mouseup', handleEnd);
+canvas.addEventListener('touchend', handleEnd);
+
+function handleEnd() {
+    if (!striker.isDragging) return;
+    striker.isDragging = false;
+    
+    const dx = striker.dragStart.x - striker.x;
+    const dy = striker.dragStart.y - striker.y;
+    const distance = Math.hypot(dx, dy);
+    
+    if (distance > 30) {
+        const angle = Math.atan2(dy, dx);
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const targetDistance = distance * 1.2;
+        
+        striker.startX = striker.x;
+        striker.startY = striker.y;
+        striker.targetX = centerX + Math.cos(angle) * targetDistance;
+        striker.targetY = centerY + Math.sin(angle) * targetDistance;
+        
+        striker.targetX = Math.max(striker.radius, 
+            Math.min(canvas.width - striker.radius, striker.targetX));
+        striker.targetY = Math.max(striker.radius, 
+            Math.min(canvas.height - striker.radius, striker.targetY));
+            
+        striker.hasLaunched = true;
+        animateStriker();
+    } else {
+        resetStriker();
+    }
+}
+
+function animateStriker() {
+    const baseSpeed = 0.15; // Increased base speed
+    const travelDistance = Math.hypot(
+        striker.targetX - striker.startX,
+        striker.targetY - striker.startY
+    );
+    
+    const duration = Math.max(300, Math.min(1500, travelDistance / baseSpeed));
+    const startTime = performance.now();
+
+    function easeOutQuad(t) {
+        return t * (2 - t); // True ease-out quadratic
+    }
+
+    function animate(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const t = easeOutQuad(progress);
+        
+        striker.x = striker.startX + (striker.targetX - striker.startX) * t;
+        striker.y = striker.startY + (striker.targetY - striker.startY) * t;
+        
+        if (progress < 1) {
+            animationFrame = requestAnimationFrame(animate);
+        } else {
+            striker.x = striker.targetX;
+            striker.y = striker.targetY;
+            checkStrikerResult();
+        }
+        render();
+    }
+    
+    animationFrame = requestAnimationFrame(animate);
+}
+
+function checkStrikerResult() {
+    if (checkCollision()) {
+        score++;
+        scrollOffset += 100;
+        resetStriker();
+        spawnTarget();
+    } else {
+        gameState = 'gameOver';
+        document.getElementById('finalScore').innerText = `Score: ${score}`;
+        document.getElementById('gameOverScreen').style.display = 'flex';
+    }
+}
+
+function update() {
+    if (gameState !== 'playing') return;
+    render();
+    requestAnimationFrame(update);
+}
+
+function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw target
+    ctx.fillStyle = target.color;
+    ctx.beginPath();
+    switch(target.shape) {
+        case 'circle':
+            ctx.arc(target.x, target.y - scrollOffset, target.size / 2, 0, Math.PI * 2);
+            break;
+        case 'square':
+            ctx.rect(target.x - target.size / 2, target.y - scrollOffset - target.size / 2, target.size, target.size);
+            break;
+    }
+    ctx.fill();
+    
+    // Draw striker
+    ctx.fillStyle = striker.color;
+    ctx.beginPath();
+    ctx.arc(striker.x, striker.y, striker.radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Draw drag indicator
+    if (striker.isDragging) {
+        ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(striker.dragStart.x, striker.dragStart.y);
+        ctx.lineTo(striker.x, striker.y);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255, 100, 100, 0.3)';
+        ctx.beginPath();
+        ctx.arc(striker.dragStart.x, striker.dragStart.y, striker.radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    document.getElementById('score').innerText = `Score: ${score}`;
+}
+
+resetStriker();
+</script>
+</body>
+</html>
